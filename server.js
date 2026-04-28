@@ -1,4 +1,4 @@
-// 本地开发用的 Express 服务器（模拟 Vercel Serverless Functions）
+// 本地开发用的 Express 服务器
 import express from 'express'
 import cors from 'cors'
 import Database from 'better-sqlite3'
@@ -15,7 +15,7 @@ const PORT = 3001
 const db = new Database(join(__dirname, 'prisma', 'dev.db'))
 db.pragma('journal_mode = WAL')
 
-// 创建表（如果不存在）
+// 创建表
 db.exec(`
   CREATE TABLE IF NOT EXISTS Todo (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,15 +29,22 @@ db.exec(`
 app.use(cors())
 app.use(express.json())
 
-// ============ 待办事项 CRUD ============
-
-// 获取所有待办
 app.get('/api/todos', (req, res) => {
-  const todos = db.prepare('SELECT * FROM Todo ORDER BY createdAt DESC').all()
-  res.json(todos.map(t => ({ ...t, completed: !!t.completed })))
+  const { page = 1, pageSize = 20 } = req.query
+  const limit = Number(pageSize)
+  const offset = (Number(page) - 1) * limit
+
+  const todos = db.prepare('SELECT * FROM Todo ORDER BY createdAt DESC LIMIT ? OFFSET ?').all(limit, offset)
+  const total = db.prepare('SELECT count(*) as count FROM Todo').get().count
+
+  res.json({
+    list: todos.map(t => ({ ...t, completed: !!t.completed })),
+    total,
+    page: Number(page),
+    pageSize: Number(pageSize)
+  })
 })
 
-// 新增待办
 app.post('/api/todos', (req, res) => {
   const { title } = req.body
   if (!title || !title.trim()) return res.status(400).json({ error: '标题不能为空' })
@@ -48,7 +55,6 @@ app.post('/api/todos', (req, res) => {
   res.status(201).json({ ...todo, completed: !!todo.completed })
 })
 
-// 更新待办
 app.put('/api/todos', (req, res) => {
   const { id, completed, title } = req.body
   if (!id) return res.status(400).json({ error: '缺少 id' })
@@ -72,7 +78,6 @@ app.put('/api/todos', (req, res) => {
   res.json({ ...todo, completed: !!todo.completed })
 })
 
-// 删除待办
 app.delete('/api/todos', (req, res) => {
   const { id } = req.body
   if (!id) return res.status(400).json({ error: '缺少 id' })
@@ -81,6 +86,5 @@ app.delete('/api/todos', (req, res) => {
 })
 
 app.listen(PORT, () => {
-  console.log(`✅ 本地 API 服务器已启动: http://localhost:${PORT}`)
-  console.log(`📋 数据库: ${join(__dirname, 'prisma', 'dev.db')}`)
+  console.log(`✅ 本地 API 服务器已启动: http://localhost:${PORT} (使用 better-sqlite3 直连)`)
 })

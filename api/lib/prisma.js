@@ -1,9 +1,16 @@
+import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 
 // 避免开发环境热重载时创建多个实例
 const globalForPrisma = globalThis
 
-const prisma = globalForPrisma.prisma || new PrismaClient()
+const prisma = globalForPrisma.prisma || new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL || 'file:./prisma/dev.db'
+    }
+  }
+})
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma
