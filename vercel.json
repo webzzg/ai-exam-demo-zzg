@@ -6,5 +6,8 @@
     "api/**/*": {
       "includeFiles": "prisma/**"
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/api/todo/(.*)", "destination": "/api/rpc.js?action=$1" }
+  ]
 }

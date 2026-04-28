@@ -19,14 +19,11 @@ const form = reactive({
   completed: false
 })
 
-// --- API 调用 ---
-const API_BASE = '/api/todos'
-
 // 获取数据
 async function fetchList() {
   loading.value = true
   try {
-    const res = await fetch(`${API_BASE}?page=${currentPage.value}&pageSize=${pageSize.value}`)
+    const res = await fetch(`/api/todo/list?page=${currentPage.value}&pageSize=${pageSize.value}`)
     const data = await res.json()
     tableData.value = data.list || []
     total.value = data.total || 0
@@ -43,12 +40,12 @@ async function handleSave() {
     return ElMessage.warning('请输入标题')
   }
 
-  const method = isEdit.value ? 'PUT' : 'POST'
+  const url = isEdit.value ? '/api/todo/update' : '/api/todo/add'
   const payload = isEdit.value ? { id: form.id, title: form.title, completed: form.completed } : { title: form.title }
 
   try {
-    const res = await fetch(API_BASE, {
-      method,
+    const res = await fetch(url, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
@@ -67,8 +64,8 @@ async function handleSave() {
 async function handleDelete(id) {
   try {
     await ElMessageBox.confirm('确定要删除这项内容吗？', '确认删除', { type: 'warning' })
-    const res = await fetch(API_BASE, {
-      method: 'DELETE',
+    const res = await fetch('/api/todo/delete', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id })
     })
@@ -160,7 +157,11 @@ onMounted(fetchList)
 <template>
   <div class="fullstack-container">
     <header class="page-header">
-      <div class="logo">🚀 AI Full-Stack Demo</div>
+      <div class="logo">
+        🚀 AI Full-Stack Demo
+        <span class="author-tag">👤 开发者: ZZG</span>
+        <a class="vercel-link" href="https://vercel.com" target="_blank">部署于 Vercel ▲</a>
+      </div>
       <div class="actions">
         <el-button type="primary" :icon="Plus" @click="openAdd">新增任务</el-button>
         <el-button :icon="Refresh" @click="fetchList" circle />
@@ -251,9 +252,42 @@ body {
 }
 
 .logo {
+  display: flex;
+  align-items: center;
   font-size: 1.25rem;
   font-weight: bold;
   color: #409eff;
+}
+
+.author-tag {
+  font-size: 0.85rem;
+  font-weight: normal;
+  color: #909399;
+  background-color: #f4f4f5;
+  padding: 4px 10px;
+  border-radius: 12px;
+  margin-left: 12px;
+  border: 1px solid #e9e9eb;
+}
+
+.vercel-link {
+  font-size: 0.85rem;
+  font-weight: normal;
+  color: #000;
+  background-color: #fff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  margin-left: 10px;
+  text-decoration: none;
+  border: 1px solid #eaeaea;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.vercel-link:hover {
+  background-color: #000;
+  color: #fff;
 }
 
 .table-section {

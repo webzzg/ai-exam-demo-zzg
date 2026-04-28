@@ -1,35 +1,14 @@
-// 本地开发用的 Express 服务器
 import express from 'express'
 import cors from 'cors'
-import Database from 'better-sqlite3'
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+import db from './api/lib/db.js'
 
 const app = express()
 const PORT = 3001
 
-// 初始化 SQLite 数据库
-const db = new Database(join(__dirname, 'prisma', 'dev.db'))
-db.pragma('journal_mode = WAL')
-
-// 创建表
-db.exec(`
-  CREATE TABLE IF NOT EXISTS Todo (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    completed INTEGER DEFAULT 0,
-    createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now'))
-  )
-`)
-
 app.use(cors())
 app.use(express.json())
 
-app.get('/api/todos', (req, res) => {
+app.get('/api/todo/list', (req, res) => {
   const { page = 1, pageSize = 20 } = req.query
   const limit = Number(pageSize)
   const offset = (Number(page) - 1) * limit
@@ -45,7 +24,7 @@ app.get('/api/todos', (req, res) => {
   })
 })
 
-app.post('/api/todos', (req, res) => {
+app.post('/api/todo/add', (req, res) => {
   const { title } = req.body
   if (!title || !title.trim()) return res.status(400).json({ error: '标题不能为空' })
 
@@ -55,7 +34,7 @@ app.post('/api/todos', (req, res) => {
   res.status(201).json({ ...todo, completed: !!todo.completed })
 })
 
-app.put('/api/todos', (req, res) => {
+app.post('/api/todo/update', (req, res) => {
   const { id, completed, title } = req.body
   if (!id) return res.status(400).json({ error: '缺少 id' })
 
@@ -78,7 +57,7 @@ app.put('/api/todos', (req, res) => {
   res.json({ ...todo, completed: !!todo.completed })
 })
 
-app.delete('/api/todos', (req, res) => {
+app.post('/api/todo/delete', (req, res) => {
   const { id } = req.body
   if (!id) return res.status(400).json({ error: '缺少 id' })
   db.prepare('DELETE FROM Todo WHERE id = ?').run(id)
