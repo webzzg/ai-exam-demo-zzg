@@ -1,6 +1,6 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import db from './api/lib/db.js'
 
 const app = express()
 const PORT = 3001
@@ -8,59 +8,46 @@ const PORT = 3001
 app.use(cors())
 app.use(express.json())
 
-app.get('/api/todo/list', (req, res) => {
-  const { page = 1, pageSize = 20 } = req.query
-  const limit = Number(pageSize)
-  const offset = (Number(page) - 1) * limit
+import prisma from './api/lib/prisma.js'
 
-  const todos = db.prepare('SELECT * FROM Todo ORDER BY createdAt DESC LIMIT ? OFFSET ?').all(limit, offset)
-  const total = db.prepare('SELECT count(*) as count FROM Todo').get().count
+app.get('/api/todo/list', async (req, res) => {
+  const page = parseInt(req.query.page) || 1
+  const pageSize = parseInt(req.query.pageSize) || 20
+  
+  const [todos, total] = await Promise.all([
+    prisma.todo.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.todo.count()
+  ])
 
-  res.json({
-    list: todos.map(t => ({ ...t, completed: !!t.completed })),
-    total,
-    page: Number(page),
-    pageSize: Number(pageSize)
-  })
+  res.json({ list: todos, total, page, pageSize })
 })
 
-app.post('/api/todo/add', (req, res) => {
+app.post('/api/todo/add', async (req, res) => {
   const { title } = req.body
-  if (!title || !title.trim()) return res.status(400).json({ error: '标题不能为空' })
-
-  const stmt = db.prepare('INSERT INTO Todo (title) VALUES (?)')
-  const result = stmt.run(title.trim())
-  const todo = db.prepare('SELECT * FROM Todo WHERE id = ?').get(result.lastInsertRowid)
-  res.status(201).json({ ...todo, completed: !!todo.completed })
+  if (!title) return res.status(400).json({ error: '标题不能为空' })
+  const todo = await prisma.todo.create({ data: { title: title.trim() } })
+  res.status(201).json(todo)
 })
 
-app.post('/api/todo/update', (req, res) => {
+app.post('/api/todo/update', async (req, res) => {
   const { id, completed, title } = req.body
   if (!id) return res.status(400).json({ error: '缺少 id' })
+  const data = {}
+  if (typeof completed === 'boolean') data.completed = completed
+  if (typeof title === 'string') data.title = title.trim()
 
-  const updates = []
-  const values = []
-
-  if (typeof completed === 'boolean') {
-    updates.push('completed = ?')
-    values.push(completed ? 1 : 0)
-  }
-  if (typeof title === 'string') {
-    updates.push('title = ?')
-    values.push(title.trim())
-  }
-  updates.push("updatedAt = datetime('now')")
-  values.push(id)
-
-  db.prepare(`UPDATE Todo SET ${updates.join(', ')} WHERE id = ?`).run(...values)
-  const todo = db.prepare('SELECT * FROM Todo WHERE id = ?').get(id)
-  res.json({ ...todo, completed: !!todo.completed })
+  const todo = await prisma.todo.update({ where: { id: Number(id) }, data })
+  res.json(todo)
 })
 
-app.post('/api/todo/delete', (req, res) => {
+app.post('/api/todo/delete', async (req, res) => {
   const { id } = req.body
   if (!id) return res.status(400).json({ error: '缺少 id' })
-  db.prepare('DELETE FROM Todo WHERE id = ?').run(id)
+  await prisma.todo.delete({ where: { id: Number(id) } })
   res.json({ success: true })
 })
 
@@ -74,15 +61,15 @@ function escapeCsvField(value) {
 }
 
 // 导出 CSV
-app.get('/api/todo/export', (req, res) => {
-  const todos = db.prepare('SELECT * FROM Todo ORDER BY createdAt DESC').all()
+app.get('/api/todo/export', async (req, res) => {
+  const todos = await prisma.todo.findMany({ orderBy: { createdAt: 'desc' } })
   const header = 'ID,标题,状态,创建时间,更新时间'
   const rows = todos.map(t => [
     t.id,
     escapeCsvField(t.title),
     t.completed ? '已完成' : '待处理',
-    t.createdAt,
-    t.updatedAt
+    t.createdAt.toISOString(),
+    t.updatedAt.toISOString()
   ].join(','))
   const csv = [header, ...rows].join('\n')
 
@@ -92,28 +79,22 @@ app.get('/api/todo/export', (req, res) => {
 })
 
 // 导入
-app.post('/api/todo/import', (req, res) => {
+app.post('/api/todo/import', async (req, res) => {
   const { items } = req.body
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: '导入数据不能为空' })
-  }
+  if (!Array.isArray(items)) return res.status(400).json({ error: '数据格式错误' })
 
-  const insert = db.prepare('INSERT INTO Todo (title, completed) VALUES (?, ?)')
-  const insertMany = db.transaction((list) => {
-    let count = 0
-    for (const item of list) {
-      if (!item.title || !item.title.trim()) continue
-      const completed = item.completed === true || item.completed === '已完成' || item.completed === 1 ? 1 : 0
-      insert.run(item.title.trim(), completed)
-      count++
-    }
-    return count
-  })
-
-  const count = insertMany(items)
-  res.json({ success: true, imported: count })
+  const created = await prisma.$transaction(
+    items.map(item => prisma.todo.create({
+      data: {
+        title: item.title,
+        completed: item.completed === true || item.completed === '已完成'
+      }
+    }))
+  )
+  res.json({ success: true, imported: created.length })
 })
 
 app.listen(PORT, () => {
-  console.log(`✅ 本地 API 服务器已启动: http://localhost:${PORT} (使用 better-sqlite3 直连)`)
+  console.log(`\n🚀 全栈 API 服务器已启动: http://localhost:${PORT}`)
+  console.log(`🔗 数据库状态: 正在使用云端 PostgreSQL (Vercel Postgres)\n`)
 })
