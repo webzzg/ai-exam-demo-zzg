@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, reactive, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, Delete, Refresh } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Refresh, Download, Upload } from '@element-plus/icons-vue'
 
 // --- 数据定义 ---
 const tableData = ref([])
@@ -18,6 +18,10 @@ const form = reactive({
   title: '',
   completed: false
 })
+
+// 导入相关
+const fileInputRef = ref(null)
+const importing = ref(false)
 
 // 获取数据
 async function fetchList() {
@@ -49,7 +53,7 @@ async function handleSave() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    
+
     if (res.ok) {
       ElMessage.success(isEdit.value ? '修改成功' : '添加成功')
       dialogVisible.value = false
@@ -102,18 +106,123 @@ function handlePageChange(page) {
   fetchList()
 }
 
+// --- 导出 ---
+function handleExport() {
+  // 直接触发浏览器下载
+  const link = document.createElement('a')
+  link.href = '/api/todo/export'
+  link.download = 'todos_export.csv'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  ElMessage.success('导出成功，文件已开始下载')
+}
+
+// --- 导入 ---
+function triggerImport() {
+  fileInputRef.value?.click()
+}
+
+async function handleFileChange(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  // 校验文件类型
+  if (!file.name.endsWith('.csv')) {
+    ElMessage.error('仅支持 .csv 文件')
+    event.target.value = ''
+    return
+  }
+
+  importing.value = true
+  try {
+    const text = await file.text()
+    const items = parseCsv(text)
+
+    if (items.length === 0) {
+      ElMessage.warning('CSV 文件中没有有效数据')
+      return
+    }
+
+    const res = await fetch('/api/todo/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      ElMessage.success(`导入成功，共导入 ${data.imported} 条任务`)
+      fetchList()
+    } else {
+      const err = await res.json()
+      ElMessage.error(err.error || '导入失败')
+    }
+  } catch (error) {
+    ElMessage.error('导入过程出错: ' + error.message)
+  } finally {
+    importing.value = false
+    event.target.value = '' // 重置以便重复上传同一文件
+  }
+}
+
+// CSV 解析
+function parseCsv(text) {
+  // 移除可能的 BOM
+  const cleaned = text.replace(/^\uFEFF/, '')
+  const lines = cleaned.split(/\r?\n/).filter(line => line.trim())
+  if (lines.length < 2) return []
+
+  // 跳过表头
+  const header = lines[0].toLowerCase()
+  const hasHeader = header.includes('标题') || header.includes('title') || header.includes('id')
+  const dataLines = hasHeader ? lines.slice(1) : lines
+
+  return dataLines.map(line => {
+    // 简单 CSV 解析（支持引号包裹字段）
+    const fields = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"'
+          i++
+        } else {
+          inQuotes = !inQuotes
+        }
+      } else if (ch === ',' && !inQuotes) {
+        fields.push(current)
+        current = ''
+      } else {
+        current += ch
+      }
+    }
+    fields.push(current)
+
+    // 兼容: CSV 可能包含 ID, 标题, 状态... 或只有标题
+    if (fields.length >= 3) {
+      return { title: fields[1].trim(), completed: fields[2].trim() }
+    } else if (fields.length >= 1) {
+      return { title: fields[0].trim(), completed: false }
+    }
+    return null
+  }).filter(Boolean).filter(item => item.title)
+}
+
 // --- 虚拟表格配置 ---
 const columns = [
   { key: 'id', dataKey: 'id', title: 'ID', width: 80 },
   { key: 'title', dataKey: 'title', title: '任务标题', width: 250, flexGrow: 1 },
-  { 
-    key: 'completed', 
-    dataKey: 'completed', 
-    title: '状态', 
+  {
+    key: 'completed',
+    dataKey: 'completed',
+    title: '状态',
     width: 100,
     cellRenderer: ({ cellData }) => h(
-      'span', 
-      { style: { color: cellData ? '#67C23A' : '#E6A23C' } }, 
+      'span',
+      { style: { color: cellData ? '#67C23A' : '#E6A23C' } },
       cellData ? '✅ 已完成' : '🕒 待处理'
     )
   },
@@ -131,20 +240,20 @@ const columns = [
     fixed: 'right',
     cellRenderer: ({ rowData }) => h('div', [
       h(
-        'button', 
-        { 
-          class: 'el-button el-button--primary el-button--small', 
-          onClick: () => openEdit(rowData) 
-        }, 
+        'button',
+        {
+          class: 'el-button el-button--primary el-button--small',
+          onClick: () => openEdit(rowData)
+        },
         '修改'
       ),
       h(
-        'button', 
-        { 
-          class: 'el-button el-button--danger el-button--small', 
+        'button',
+        {
+          class: 'el-button el-button--danger el-button--small',
           style: { marginLeft: '8px' },
-          onClick: () => handleDelete(rowData.id) 
-        }, 
+          onClick: () => handleDelete(rowData.id)
+        },
         '删除'
       )
     ])
@@ -159,13 +268,23 @@ onMounted(fetchList)
     <header class="page-header">
       <div class="logo">
         🚀 AI Full-Stack Demo
-        <span class="author-tag">👤 开发者: ZZG</span>
+        <span class="author-tag">👤 开发者: 张志国</span>
         <a class="vercel-link" href="https://vercel.com" target="_blank">部署于 Vercel ▲</a>
       </div>
       <div class="actions">
+        <el-button type="success" :icon="Download" @click="handleExport">导出</el-button>
+        <el-button type="warning" :icon="Upload" @click="triggerImport" :loading="importing">导入</el-button>
         <el-button type="primary" :icon="Plus" @click="openAdd">新增任务</el-button>
         <el-button :icon="Refresh" @click="fetchList" circle />
       </div>
+      <!-- 隐藏的文件上传 input -->
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept=".csv"
+        style="display: none"
+        @change="handleFileChange"
+      />
     </header>
 
     <main class="table-section" v-loading="loading">
@@ -173,27 +292,15 @@ onMounted(fetchList)
       <div style="height: 500px; width: 100%">
         <el-auto-resizer>
           <template #default="{ height, width }">
-            <el-table-v2
-              :columns="columns"
-              :data="tableData"
-              :width="width"
-              :height="height"
-              fixed
-            />
+            <el-table-v2 :columns="columns" :data="tableData" :width="width" :height="height" fixed />
           </template>
         </el-auto-resizer>
       </div>
 
       <!-- 分页栏 -->
       <div class="pagination-footer">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :total="total"
-          layout="total, prev, pager, next, jumper"
-          @current-change="handlePageChange"
-          background
-        />
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total"
+          layout="total, prev, pager, next, jumper" @current-change="handlePageChange" background />
       </div>
     </main>
 
@@ -205,11 +312,7 @@ onMounted(fetchList)
     </section>
 
     <!-- 编辑/新增 弹窗 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑任务' : '新增任务'"
-      width="400px"
-    >
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑任务' : '新增任务'" width="400px">
       <el-form :model="form" label-width="80px">
         <el-form-item label="标题">
           <el-input v-model="form.title" placeholder="请输入任务内容" />
@@ -239,7 +342,7 @@ body {
   margin: 40px auto;
   background: #fff;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   overflow: hidden;
 }
 
@@ -323,8 +426,8 @@ body {
 
 /* 适配 el-table-v2 的按钮样式 */
 .el-button--small {
-    padding: 5px 11px;
-    font-size: 12px;
-    border-radius: 3px;
+  padding: 5px 11px;
+  font-size: 12px;
+  border-radius: 3px;
 }
 </style>

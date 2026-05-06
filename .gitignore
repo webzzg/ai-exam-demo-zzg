@@ -29,6 +29,8 @@ dist-ssr
 .env
 prisma/dev.db
 prisma/dev.db-journal
+prisma/dev.db-wal
+prisma/dev.db-shm
 
 .vercel
 .env*.local

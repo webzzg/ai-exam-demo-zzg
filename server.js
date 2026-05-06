@@ -64,6 +64,56 @@ app.post('/api/todo/delete', (req, res) => {
   res.json({ success: true })
 })
 
+// CSV 转义辅助函数
+function escapeCsvField(value) {
+  const str = String(value ?? '')
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"'
+  }
+  return str
+}
+
+// 导出 CSV
+app.get('/api/todo/export', (req, res) => {
+  const todos = db.prepare('SELECT * FROM Todo ORDER BY createdAt DESC').all()
+  const header = 'ID,标题,状态,创建时间,更新时间'
+  const rows = todos.map(t => [
+    t.id,
+    escapeCsvField(t.title),
+    t.completed ? '已完成' : '待处理',
+    t.createdAt,
+    t.updatedAt
+  ].join(','))
+  const csv = [header, ...rows].join('\n')
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', 'attachment; filename=todos_export.csv')
+  res.send('\uFEFF' + csv)
+})
+
+// 导入
+app.post('/api/todo/import', (req, res) => {
+  const { items } = req.body
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: '导入数据不能为空' })
+  }
+
+  const insert = db.prepare('INSERT INTO Todo (title, completed) VALUES (?, ?)')
+  const insertMany = db.transaction((list) => {
+    let count = 0
+    for (const item of list) {
+      if (!item.title || !item.title.trim()) continue
+      const completed = item.completed === true || item.completed === '已完成' || item.completed === 1 ? 1 : 0
+      insert.run(item.title.trim(), completed)
+      count++
+    }
+    return count
+  })
+
+  const count = insertMany(items)
+  res.json({ success: true, imported: count })
+})
+
 app.listen(PORT, () => {
   console.log(`✅ 本地 API 服务器已启动: http://localhost:${PORT} (使用 better-sqlite3 直连)`)
 })
