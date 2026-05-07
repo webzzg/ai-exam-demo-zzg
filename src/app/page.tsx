@@ -38,6 +38,7 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [searchCode, setSearchCode] = useState("");
   const [searchName, setSearchName] = useState("");
+  const [submitResult, setSubmitResult] = useState<{ success: number; skipped: number; total: number } | null>(null);
 
   // ========= 历史列表 =========
   const fetchHistory = async (page = 1, searchOverride?: string) => {
@@ -232,17 +233,54 @@ export default function Home() {
 
   // ========= 提交下单 =========
   const handleSubmit = async () => {
+    // 1. 本地校验拦截
     if (errors.length > 0) {
-      message.error(`还有 ${errors.length} 处错误未修复，请先修正后再提交`);
+      const dbDupCount = errors.filter(e => e.message === "与数据库已存在数据重复").length;
+      const otherCount = errors.length - dbDupCount;
+      const parts: string[] = [];
+      if (otherCount > 0) parts.push(`${otherCount} 处数据错误`);
+      if (dbDupCount > 0) parts.push(`${dbDupCount} 条外部编码与数据库重复`);
+      message.error(`还有 ${parts.join("、")}，请先修正后再提交`);
       return;
     }
     if (validData.length === 0) return;
     
+    // 2. 提交前再次同步检查数据库重复（防止用户编辑后未触发防抖检查）
+    const codesToCheck = validData.map(r => r.externalCode).filter(Boolean);
+    if (codesToCheck.length > 0) {
+      try {
+        const checkRes = await fetch("/api/waybills/check-duplicates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ codes: codesToCheck })
+        });
+        const checkData = await checkRes.json();
+        if (checkData.duplicates?.length > 0) {
+          // 标记重复行并拦截
+          const dbErrors: ValidationError[] = [];
+          validData.forEach((row, i) => {
+            if (row.externalCode && checkData.duplicates.includes(row.externalCode)) {
+              dbErrors.push({
+                row: i + 1, field: "externalCode",
+                fieldLabel: "外部编码", message: "与数据库已存在数据重复",
+              });
+            }
+          });
+          setErrors(prev => [...prev.filter(e => e.message !== "与数据库已存在数据重复"), ...dbErrors]);
+          message.error(`检测到 ${checkData.duplicates.length} 条外部编码与数据库重复，请修改后重试`);
+          return;
+        }
+      } catch (e) {
+        // 网络错误不阻止提交
+      }
+    }
+
+    // 3. 开始提交
     setSubmitting(true);
     setStep("submitting");
+    setSubmitResult(null);
     setProgress({ percent: 0, current: 0, total: validData.length, label: "正在提交数据..." });
     
-    // 提交进度模拟
     let currentStep = 0;
     const totalSteps = 20;
     const timer = setInterval(() => {
@@ -266,19 +304,10 @@ export default function Home() {
       if (res.ok) {
         const resData = await res.json();
         const skipped = resData.skippedDuplicates || 0;
-        const msg = skipped > 0 
-          ? `成功提交 ${resData.count} 条运单数据！（跳过 ${skipped} 条重复编码）`
-          : `成功提交 ${resData.count} 条运单数据！`;
-        message.success(msg);
+        const successCount = resData.count || 0;
+        setSubmitResult({ success: successCount, skipped, total: validData.length });
+        message.success(`成功提交 ${successCount} 条运单数据！`);
         setStep("done");
-        setTimeout(() => {
-          setStep("idle");
-          setValidData([]);
-          setErrors([]);
-          setFileName("");
-          setProgress({ percent: 0, current: 0, total: 0, label: "" });
-          fetchHistory();
-        }, 2500);
       } else {
         const errData = await res.json().catch(() => ({}));
         message.error(errData.error || "提交失败，请稍后重试");
@@ -501,7 +530,7 @@ export default function Home() {
           styles={{ body: { maxHeight: '70vh', overflow: 'auto' } }}
           footer={
             step === "done" ? (
-              <Button type="primary" onClick={() => { setStep("idle"); setValidData([]); setErrors([]); setFileName(""); fetchHistory(); }}>
+              <Button type="primary" onClick={() => { setStep("idle"); setValidData([]); setErrors([]); setFileName(""); setSubmitResult(null); fetchHistory(); }}>
                 关闭
               </Button>
             ) : (
@@ -543,12 +572,31 @@ export default function Home() {
             </div>
           )}
           
-          {/* 提交成功 */}
+          {/* 提交成功汇总 */}
           {step === "done" && (
-            <div style={{ padding: '60px 0', textAlign: 'center' }}>
+            <div style={{ padding: '40px 0', textAlign: 'center' }}>
               <CheckCircleOutlined style={{ fontSize: 72, color: '#52c41a' }} />
               <h2 style={{ marginTop: 20, color: '#333' }}>提交成功！</h2>
-              <p style={{ color: '#666' }}>成功导入 <Text strong style={{ fontSize: 18, color: '#52c41a' }}>{validData.length}</Text> 条运单数据到数据库</p>
+              <div style={{
+                margin: '20px auto', padding: '16px 32px',
+                backgroundColor: '#f6ffed', border: '1px solid #b7eb8f',
+                borderRadius: 8, display: 'inline-block', textAlign: 'left',
+              }}>
+                <p style={{ margin: '4px 0', fontSize: 15 }}>
+                  ✅ 成功入库：<Text strong style={{ fontSize: 18, color: '#52c41a' }}>{submitResult?.success ?? 0}</Text> 条
+                </p>
+                {(submitResult?.skipped ?? 0) > 0 && (
+                  <p style={{ margin: '4px 0', fontSize: 15 }}>
+                    ⚠️ 跳过重复：<Text strong style={{ fontSize: 18, color: '#faad14' }}>{submitResult?.skipped}</Text> 条
+                  </p>
+                )}
+                <p style={{ margin: '4px 0', fontSize: 15 }}>
+                  📦 总提交：<Text strong>{submitResult?.total ?? 0}</Text> 条
+                </p>
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <Text type="secondary">数据已持久化到 Neon PostgreSQL 云端数据库</Text>
+              </div>
             </div>
           )}
 
