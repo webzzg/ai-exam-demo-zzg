@@ -607,7 +607,7 @@ export default function Home() {
               current: historyPage, 
               total: historyTotal, 
               pageSize: 20, 
-              onChange: fetchHistory,
+              onChange: (p: number) => fetchHistory(p),
               showTotal: (total) => `共 ${total} 条记录`,
               showSizeChanger: false,
             }}
