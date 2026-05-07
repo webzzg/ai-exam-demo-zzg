@@ -1,29 +1,33 @@
 {
-  "name": "ai-exam-demo",
+  "name": "nextapp",
+  "version": "0.1.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:server": "node server.js",
-    "dev:full": "npx -y concurrently \"node server.js\" \"vite\"",
-    "db:push": "npx prisma db push",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.2",
-    "@prisma/client": "^6.4.0",
-    "better-sqlite3": "^12.9.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "element-plus": "^2.13.7",
-    "express": "^5.2.1",
-    "prisma": "^6.4.0",
-    "vue": "^3.5.32"
+    "@prisma/client": "^5.22.0",
+    "next": "16.2.5",
+    "prisma": "^5.22.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "uuid": "^14.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.6",
-    "vite": "^8.0.10"
+    "@tailwindcss/postcss": "^4.2.4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
+    "autoprefixer": "^10.5.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.5",
+    "postcss": "^8.5.14",
+    "tailwindcss": "^4.2.4",
+    "typescript": "^5"
   }
 }

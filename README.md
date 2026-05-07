@@ -1,75 +1,36 @@
-# 🚀 AI Full-Stack Exam Demo
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-这是一个基于 **Vue 3 + Element Plus + Express + PostgreSQL** 的全栈考试演示项目。它实现了完整的数据增删改查（CRUD）闭环，并支持 CSV 数据的导入与导出，完美适配 **Vercel** Serverless 环境部署。
+## Getting Started
 
-## ✨ 项目核心特性
-
-- **全栈闭环**：前端 Vue 3 配合后端 Serverless API，实现真实的生产级交互。
-- **虚拟表格**：集成 `el-table-v2` 虚拟化表格，支持海量数据的高性能渲染。
-- **导入导出**：
-  - **导出**：一键生成符合标准的 CSV 文件（处理了中文 BOM 兼容性）。
-  - **导入**：支持 CSV 文件上传，前端解析 + 后端事务批量插入，效率极高。
-- **环境自适应**：一套代码同时兼容本地 Node.js 环境（better-sqlite3）与 Vercel Serverless 环境。
-
-## 🛠️ 技术选型
-
-- **前端层 (Frontend)**：Vue 3 (Composition API) + Element Plus。利用现代化响应式框架与标准 UI 库，构建高性能、高交互性的用户界面。
-- **构建层 (Build)**：Vite 8 + ESM。基于原生 ES 模块的极速构建工具，提供毫秒级的热更新能力，显著提升研发效率。
-- **后端层 (Backend)**：Node.js + Express 5。成熟稳定的服务端环境，配合 Vercel Serverless Functions 实现弹性伸缩的 API 服务。
-- **数据层 (Database)**：PostgreSQL (Cloud Database)。采用业界领先的云原生关系型数据库，确保存储的持久性、高并发能力与数据安全。
-- **ORM 层 (ORM)**：Prisma 6。强类型的数据库建模工具，通过代码即文档的方式管理数据 schema，降低维护成本。
-- **部署层 (Deployment)**：Vercel Global Infrastructure。集成 CI/CD 流程，通过全球边缘网络分发，确保系统在全球范围内的低延迟访问。
-
-## 📦 快速开始
-
-### 1. 安装依赖
-在项目根目录下执行：
-```bash
-npm install
-```
-
-### 2. 本地全栈开发 (推荐)
-只需一条命令即可同时启动前端 Vite 和后端 API 服务器：
-```bash
-npm run dev:full
-```
-启动后访问：`http://localhost:5173` (或终端提示的端口)
-
-### 3. 分别启动 (可选)
-- **仅启动前端**：`npm run dev`
-- **仅启动后端 API**：`npm run dev:server`
-
----
-
-## 🚀 部署到 Vercel
-
-本项目针对 Vercel 进行了深度优化，可通过以下命令一键部署：
+First, run the development server:
 
 ```bash
-# 安装 Vercel CLI (如果没有)
-npm install -g vercel
-
-# 生产环境部署
-npx vercel --prod
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-### 线上部署核心点：
-- **数据库位置**：在 Vercel 生产环境下，SQLite 数据库会自动拷贝到 `/tmp` 目录以获得写入权限。
-- **路由重写**：通过 `vercel.json` 将 `/api/todo/*` 的 RPC 请求统一重定向到 `/api/rpc.js` 容器进行处理。
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
----
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-## 📜 常用命令说明
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-| 命令 | 说明 |
-| :--- | :--- |
-| `npm run dev:full` | **全栈启动**：使用 `concurrently` 同时运行前后端。 |
-| `npm run dev` | **前端开发**：启动 Vite 热更新服务。 |
-| `npm run dev:server` | **后端开发**：启动 Express API 服务器（3001 端口）。 |
-| `npm run build` | **生产构建**：执行 Prisma 生成与 Vite 构建。 |
-| `npx prisma generate` | **模型更新**：根据 `schema.prisma` 更新数据库客户端。 |
+## Learn More
 
----
+To learn more about Next.js, take a look at the following resources:
 
-## 👤 开发者
-**张志国** (Vercel 演示项目)
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Waybill {
+  id              String   @id @default(uuid())
+  externalCode    String?  @map("external_code")
+  senderName      String   @map("sender_name")
+  senderPhone     String   @map("sender_phone")
+  senderAddress   String   @map("sender_address")
+  receiverName    String   @map("receiver_name")
+  receiverPhone   String   @map("receiver_phone")
+  receiverAddress String   @map("receiver_address")
+  weight          Float
+  quantity        Int
+  tempZone        String   @map("temp_zone")
+  remark          String?
+  batchId         String   @map("batch_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("waybills")
+}
+
+model MappingRule {
+  id           String   @id @default(uuid())
+  fingerprint  String   @unique
+  mappings     String // JSON string of column mappings
+  templateName String?  @map("template_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("mapping_rules")
+}
