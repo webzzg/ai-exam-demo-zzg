@@ -108,24 +108,41 @@ const normalize = (s: string) =>
 export const guessMapping = (headers: string[]): Record<string, string> => {
   const mapping: Record<string, string> = {};
   
+  // 第一轮：精确匹配 label（优先级最高）
   for (const header of headers) {
     if (!header || !header.trim()) continue;
     const normalizedHeader = normalize(header);
     
-    // Find matching standard field
     const match = standardFields.find(field => {
-      // 1. 精确匹配 label
-      if (normalize(field.label) === normalizedHeader) return true;
-      // 2. label 包含在 header 中，或 header 包含在 label 中
-      if (normalizedHeader.includes(normalize(field.label)) || normalize(field.label).includes(normalizedHeader)) return true;
-      // 3. 别名匹配
+      if (Object.values(mapping).includes(field.key)) return false;
+      return normalize(field.label) === normalizedHeader;
+    });
+    
+    if (match) {
+      mapping[header] = match.key;
+    }
+  }
+  
+  // 第二轮：对未匹配的表头尝试别名模糊匹配
+  for (const header of headers) {
+    if (!header || !header.trim() || mapping[header]) continue;
+    const normalizedHeader = normalize(header);
+    
+    const match = standardFields.find(field => {
+      // 已被映射的字段跳过
+      if (Object.values(mapping).includes(field.key)) return false;
+      
+      // 别名匹配（要求别名长度 >= 3 才做 includes，否则只做精确匹配）
       return field.aliases.some(alias => {
         const na = normalize(alias);
+        if (na.length <= 2) {
+          return normalizedHeader === na;
+        }
         return normalizedHeader.includes(na) || na.includes(normalizedHeader);
       });
     });
     
-    if (match && !Object.values(mapping).includes(match.key)) {
+    if (match) {
       mapping[header] = match.key;
     }
   }
