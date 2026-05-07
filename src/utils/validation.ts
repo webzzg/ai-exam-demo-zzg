@@ -54,23 +54,25 @@ export const validateData = (
 
     // 2. Format validation
     
-    // Phone numbers (simple regex for Chinese phones or landlines)
-    const phoneRegex = /^[0-9-+\s]+$/;
-    if (mappedRow.senderPhone && !phoneRegex.test(String(mappedRow.senderPhone))) {
+    // 手机号: 1开头11位 | 座机: 区号-号码
+    const phoneRegex = /^1[3-9]\d{9}$|^0\d{2,3}-?\d{7,8}$/;
+    const senderPhoneStr = String(mappedRow.senderPhone || '').replace(/\s+/g, '');
+    if (mappedRow.senderPhone && !phoneRegex.test(senderPhoneStr)) {
       errors.push({
         row: rowNum,
         field: "senderPhone",
         fieldLabel: reverseMapping.senderPhone || "发件人电话",
-        message: "格式错误",
+        message: "手机号需1开头11位，或座机格式如010-12345678",
       });
       hasError = true;
     }
-    if (mappedRow.receiverPhone && !phoneRegex.test(String(mappedRow.receiverPhone))) {
+    const receiverPhoneStr = String(mappedRow.receiverPhone || '').replace(/\s+/g, '');
+    if (mappedRow.receiverPhone && !phoneRegex.test(receiverPhoneStr)) {
       errors.push({
         row: rowNum,
         field: "receiverPhone",
         fieldLabel: reverseMapping.receiverPhone || "收件人电话",
-        message: "格式错误",
+        message: "手机号需1开头11位，或座机格式如010-12345678",
       });
       hasError = true;
     }
@@ -172,21 +174,24 @@ export const validateStandardData = (
     });
 
     // 2. Format validation
-    const phoneRegex = /^[0-9\-+\s]+$/;
-    if (mappedRow.senderPhone && !phoneRegex.test(String(mappedRow.senderPhone))) {
+    // 手机号: 1开头11位 | 座机: 区号-号码
+    const phoneRegex = /^1[3-9]\d{9}$|^0\d{2,3}-?\d{7,8}$/;
+    const senderPhoneStr = String(mappedRow.senderPhone || '').replace(/\s+/g, '');
+    if (mappedRow.senderPhone && !phoneRegex.test(senderPhoneStr)) {
       errors.push({
         row: rowNum,
         field: "senderPhone",
         fieldLabel: "发件人电话",
-        message: "电话格式错误",
+        message: "手机号需1开头11位，或座机格式如010-12345678",
       });
     }
-    if (mappedRow.receiverPhone && !phoneRegex.test(String(mappedRow.receiverPhone))) {
+    const receiverPhoneStr = String(mappedRow.receiverPhone || '').replace(/\s+/g, '');
+    if (mappedRow.receiverPhone && !phoneRegex.test(receiverPhoneStr)) {
       errors.push({
         row: rowNum,
         field: "receiverPhone",
         fieldLabel: "收件人电话",
-        message: "电话格式错误",
+        message: "手机号需1开头11位，或座机格式如010-12345678",
       });
     }
 

@@ -20,7 +20,7 @@ const TEMP_ZONE_OPTIONS = [
   { label: "冷冻", value: "冷冻" },
 ];
 
-// 可编辑单元格组件 — 点击后才变成 Input，避免一次性创建几千个 Input
+// 可编辑单元格组件 — 点击后才变成 Input
 const EditableCell = React.memo(({
   value,
   error,
@@ -28,7 +28,6 @@ const EditableCell = React.memo(({
   rowIndex,
   colIndex,
   onChange,
-  onBlur,
 }: {
   value: string;
   error?: ValidationError;
@@ -36,13 +35,12 @@ const EditableCell = React.memo(({
   rowIndex: number;
   colIndex: number;
   onChange: (val: string) => void;
-  onBlur: () => void;
 }) => {
   const [editing, setEditing] = useState(false);
   const [localVal, setLocalVal] = useState(value);
   const inputRef = useRef<any>(null);
 
-  // 同步外部值
+  // 仅在非编辑状态下从外部同步
   useEffect(() => {
     if (!editing) setLocalVal(value);
   }, [value, editing]);
@@ -57,14 +55,12 @@ const EditableCell = React.memo(({
     if (localVal !== value) {
       onChange(localVal);
     }
-    onBlur();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
       finishEdit();
-      // 聚焦下一行同列
       setTimeout(() => {
         const next = document.querySelector(`[data-cell="${rowIndex + 1}-${colIndex}"]`) as HTMLElement;
         next?.click();
@@ -137,7 +133,7 @@ const EditableCell = React.memo(({
     );
   }
 
-  // 展示模式 — 纯文本，无 Input，极轻量
+  // 展示模式 — 纯文本
   return (
     <div
       data-cell={`${rowIndex}-${colIndex}`}
@@ -173,9 +169,26 @@ export const DataGrid: React.FC<DataGridProps> = ({
   onRemoveRow,
   onAddRow,
 }) => {
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ★ 关键：用 localData 做编辑的唯一数据源，避免父组件校验后覆盖编辑值
+  const [localData, setLocalData] = useState<any[]>(data);
+  const dataVersionRef = useRef(0);
 
-  // 预计算错误 Map：errorMap[rowNum][fieldKey] = ValidationError（O(1) 查找）
+  // 仅在数据量变化（新上传/增删行）或首次加载时同步 props → localData
+  useEffect(() => {
+    // 检测是否是结构性变化（行数变了 = 新文件上传/增删行）
+    if (data.length !== localData.length) {
+      setLocalData(data);
+      dataVersionRef.current++;
+    }
+  }, [data.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 首次挂载同步
+  useEffect(() => {
+    setLocalData(data);
+    dataVersionRef.current++;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 预计算错误 Map
   const errorMap = useMemo(() => {
     const map: Record<number, Record<string, ValidationError>> = {};
     for (const e of errors) {
@@ -187,27 +200,20 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
   const errorRowSet = useMemo(() => new Set(errors.map(e => e.row)), [errors]);
 
+  // ★ 核心修复：编辑时更新 localData，然后通知父组件校验
   const handleCellChange = useCallback((index: number, field: string, value: string) => {
-    const newData = [...data];
-    newData[index] = { ...newData[index], [field]: value };
-    
-    // Debounce: 合并快速连续编辑，避免频繁校验
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      onDataChange(newData);
-    }, 300);
-  }, [data, onDataChange]);
-
-  const handleBlur = useCallback(() => {
-    // blur 时立即触发校验（如果还有 pending 的 debounce）
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-  }, []);
+    setLocalData(prev => {
+      const newData = [...prev];
+      newData[index] = { ...newData[index], [field]: value };
+      // 通知父组件做校验（不影响 localData 的控制权）
+      // 用 setTimeout 让 setState 先完成
+      setTimeout(() => onDataChange(newData), 0);
+      return newData;
+    });
+  }, [onDataChange]);
 
   const exportExcel = useCallback(() => {
-    const exportData = data.map(row => {
+    const exportData = localData.map(row => {
       const obj: any = {};
       standardFields.forEach(f => {
         obj[f.label] = row[f.key] || "";
@@ -218,7 +224,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
     XLSX.writeFile(workbook, "导出数据.xlsx");
-  }, [data]);
+  }, [localData]);
 
   const columns = useMemo(() => [
     {
@@ -277,7 +283,6 @@ export const DataGrid: React.FC<DataGridProps> = ({
             rowIndex={index}
             colIndex={colIndex}
             onChange={(val) => handleCellChange(index, field.key, val)}
-            onBlur={handleBlur}
           />
         );
       }
@@ -297,10 +302,10 @@ export const DataGrid: React.FC<DataGridProps> = ({
         return <Tag color="success" style={{ margin: 0 }}>通过</Tag>;
       }
     }
-  ], [errorMap, errorRowSet, handleCellChange, handleBlur, onRemoveRow]);
+  ], [errorMap, errorRowSet, handleCellChange, onRemoveRow]);
 
-  // 为大数据集添加分页
-  const pagination = data.length > 100 ? {
+  // 大数据集分页
+  const pagination = localData.length > 100 ? {
     pageSize: 100,
     showTotal: (total: number) => `共 ${total} 条`,
     showSizeChanger: true,
@@ -313,11 +318,11 @@ export const DataGrid: React.FC<DataGridProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div>
           <span style={{ fontSize: 15, fontWeight: 600 }}>数据预览</span>
-          <span style={{ color: '#999', marginLeft: 8 }}>共 {data.length} 条</span>
+          <span style={{ color: '#999', marginLeft: 8 }}>共 {localData.length} 条</span>
           {errorRowSet.size > 0 && (
             <Tag color="error" style={{ marginLeft: 8 }}>{errorRowSet.size} 行有错误</Tag>
           )}
-          {errorRowSet.size === 0 && data.length > 0 && (
+          {errorRowSet.size === 0 && localData.length > 0 && (
             <Tag color="success" style={{ marginLeft: 8 }}>全部校验通过</Tag>
           )}
         </div>
@@ -333,7 +338,7 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
       <Table
         columns={columns}
-        dataSource={data.map((d, i) => ({ ...d, key: i }))}
+        dataSource={localData.map((d, i) => ({ ...d, key: i }))}
         pagination={pagination}
         scroll={{ x: 1600, y: 450 }}
         size="small"
