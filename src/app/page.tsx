@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Layout, Card, Row, Col, Button, Select, Progress, Typography, Table, 
-  Space, Tag, Modal, message, Divider, Input, Empty, Spin
+  Space, Tag, Modal, message, Divider, Input, Empty, Spin, DatePicker
 } from "antd";
+import type { Dayjs } from 'dayjs';
 import {
   UploadOutlined, FileTextOutlined, CheckCircleOutlined,
   SyncOutlined, SearchOutlined, ReloadOutlined, ExportOutlined
@@ -39,13 +40,18 @@ export default function Home() {
   const [searchCode, setSearchCode] = useState("");
   const [searchName, setSearchName] = useState("");
   const [submitResult, setSubmitResult] = useState<{ success: number; skipped: number; total: number } | null>(null);
+  const [searchDateRange, setSearchDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
 
   // ========= 历史列表 =========
-  const fetchHistory = async (page = 1, searchOverride?: string) => {
+  const fetchHistory = async (page = 1, searchOverride?: string, dateOverride?: [Dayjs | null, Dayjs | null] | null | 'clear') => {
     setHistoryLoading(true);
     try {
       const searchVal = searchOverride !== undefined ? searchOverride : (searchCode || searchName);
-      const res = await fetch(`/api/waybills?page=${page}&search=${searchVal || ""}`);
+      const dates = dateOverride === 'clear' ? null : (dateOverride !== undefined ? dateOverride : searchDateRange);
+      const params = new URLSearchParams({ page: String(page), search: searchVal || '' });
+      if (dates && dates[0]) params.set('startDate', dates[0].startOf('day').toISOString());
+      if (dates && dates[1]) params.set('endDate', dates[1].endOf('day').toISOString());
+      const res = await fetch(`/api/waybills?${params.toString()}`);
       const data = await res.json();
       if (res.ok) {
         setHistoryItems(data.items || []);
@@ -659,12 +665,12 @@ export default function Home() {
           bordered={false}
           style={{ borderRadius: 8 }}
           extra={
-            <Space>
+            <Space wrap>
               <Input
                 placeholder="搜索外部编码"
                 prefix={<SearchOutlined />}
                 size="small"
-                style={{ width: 150 }}
+                style={{ width: 140 }}
                 value={searchCode}
                 onChange={e => setSearchCode(e.target.value)}
                 onPressEnter={() => fetchHistory(1)}
@@ -673,10 +679,18 @@ export default function Home() {
                 placeholder="搜索收件人"
                 prefix={<SearchOutlined />}
                 size="small"
-                style={{ width: 150 }}
+                style={{ width: 140 }}
                 value={searchName}
                 onChange={e => setSearchName(e.target.value)}
                 onPressEnter={() => fetchHistory(1)}
+              />
+              <DatePicker.RangePicker
+                size="small"
+                style={{ width: 240 }}
+                value={searchDateRange as any}
+                onChange={(dates) => setSearchDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
+                placeholder={['开始日期', '结束日期']}
+                allowClear
               />
               <Button size="small" type="primary" onClick={() => fetchHistory(1)}>
                 搜索
@@ -684,7 +698,8 @@ export default function Home() {
               <Button size="small" icon={<ReloadOutlined />} onClick={() => { 
                 setSearchCode(""); 
                 setSearchName(""); 
-                fetchHistory(1, ""); 
+                setSearchDateRange(null);
+                fetchHistory(1, "", 'clear'); 
               }}>
                 重置
               </Button>

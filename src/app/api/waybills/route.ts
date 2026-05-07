@@ -94,6 +94,15 @@ export async function GET(request: Request) {
       ];
     }
 
+    // 导入时间范围筛选
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    if (startDate || endDate) {
+      whereClause.createdAt = {};
+      if (startDate) whereClause.createdAt.gte = new Date(startDate);
+      if (endDate) whereClause.createdAt.lte = new Date(endDate);
+    }
+
     const [total, items] = await prisma.$transaction([
       prisma.waybill.count({ where: whereClause }),
       prisma.waybill.findMany({
