@@ -85,32 +85,47 @@ export const parseExcelFile = async (file: File): Promise<ParsedExcel> => {
 
 // Auto-mapping logic
 export const standardFields = [
-  { key: "externalCode", label: "外部编码", aliases: ["客户单号", "订单号", "外部订单号", "Ref Code", "外部单号"] },
-  { key: "senderName", label: "发件人姓名", aliases: ["发货人", "发件人", "Sender", "寄件人"], required: true },
-  { key: "senderPhone", label: "发件人电话", aliases: ["发货电话", "发件电话", "Sender Tel", "联系方式"], required: true },
-  { key: "senderAddress", label: "发件人地址", aliases: ["发货地址", "发件地址", "Sender Address", "地址"], required: true },
-  { key: "receiverName", label: "收件人姓名", aliases: ["收货人", "收方", "Receiver", "收件人"], required: true },
-  { key: "receiverPhone", label: "收件人电话", aliases: ["收货电话", "收件电话", "Receiver Tel", "收件人联系方式"], required: true },
-  { key: "receiverAddress", label: "收件人地址", aliases: ["收货地址", "收件地址", "Receiver Address", "收件人地址"], required: true },
-  { key: "weight", label: "重量 (kg)", aliases: ["重量", "重量(kg)", "重量(KG)", "Weight(kg)"], required: true },
-  { key: "quantity", label: "件数", aliases: ["数量", "Qty", "包裹数"], required: true },
-  { key: "tempZone", label: "温层", aliases: ["温度要求", "Temp Zone", "温控"], required: true },
-  { key: "remark", label: "备注", aliases: ["附言", "Note", "说明"] },
+  { key: "externalCode", label: "外部编码", aliases: ["客户单号", "订单号", "外部订单号", "Ref Code", "外部单号", "外部编号", "订单编号", "单号"] },
+  { key: "senderName", label: "发件人姓名", aliases: ["发货人", "发件人", "Sender", "寄件人", "发货人姓名", "寄件人姓名", "Sender Name"], required: true },
+  { key: "senderPhone", label: "发件人电话", aliases: ["发货电话", "发件电话", "Sender Tel", "发件人联系方式", "发货人电话", "寄件人电话", "Sender Phone"], required: true },
+  { key: "senderAddress", label: "发件人地址", aliases: ["发货地址", "发件地址", "Sender Address", "发货人地址", "寄件人地址"], required: true },
+  { key: "receiverName", label: "收件人姓名", aliases: ["收货人", "收方", "Receiver", "收件人", "收货人姓名", "Receiver Name"], required: true },
+  { key: "receiverPhone", label: "收件人电话", aliases: ["收货电话", "收件电话", "Receiver Tel", "收件人联系方式", "收货人电话", "Receiver Phone"], required: true },
+  { key: "receiverAddress", label: "收件人地址", aliases: ["收货地址", "收件地址", "Receiver Address", "收货人地址"], required: true },
+  { key: "weight", label: "重量 (kg)", aliases: ["重量", "重量(kg)", "重量(KG)", "Weight(kg)", "重量（kg）", "重量（KG）", "Weight", "货物重量"], required: true },
+  { key: "quantity", label: "件数", aliases: ["数量", "Qty", "包裹数", "包裹数量", "件", "Quantity"], required: true },
+  { key: "tempZone", label: "温层", aliases: ["温度要求", "Temp Zone", "温控", "温度", "Temperature"], required: true },
+  { key: "remark", label: "备注", aliases: ["附言", "Note", "说明", "附加说明", "Remark", "备注信息"] },
 ];
+
+// 归一化字符串：去空格、统一中英文括号、转小写
+const normalize = (s: string) =>
+  s.trim().toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/（/g, '(').replace(/）/g, ')')
+    .replace(/[【】\[\]]/g, '');
 
 export const guessMapping = (headers: string[]): Record<string, string> => {
   const mapping: Record<string, string> = {};
   
   for (const header of headers) {
-    const cleanHeader = header.trim().toLowerCase();
+    if (!header || !header.trim()) continue;
+    const normalizedHeader = normalize(header);
     
     // Find matching standard field
-    const match = standardFields.find(field => 
-      field.label.toLowerCase() === cleanHeader || 
-      field.aliases.some(alias => cleanHeader.includes(alias.toLowerCase()))
-    );
+    const match = standardFields.find(field => {
+      // 1. 精确匹配 label
+      if (normalize(field.label) === normalizedHeader) return true;
+      // 2. label 包含在 header 中，或 header 包含在 label 中
+      if (normalizedHeader.includes(normalize(field.label)) || normalize(field.label).includes(normalizedHeader)) return true;
+      // 3. 别名匹配
+      return field.aliases.some(alias => {
+        const na = normalize(alias);
+        return normalizedHeader.includes(na) || na.includes(normalizedHeader);
+      });
+    });
     
-    if (match) {
+    if (match && !Object.values(mapping).includes(match.key)) {
       mapping[header] = match.key;
     }
   }
