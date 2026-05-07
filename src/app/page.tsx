@@ -40,10 +40,11 @@ export default function Home() {
   const [searchName, setSearchName] = useState("");
 
   // ========= 历史列表 =========
-  const fetchHistory = async (page = 1) => {
+  const fetchHistory = async (page = 1, searchOverride?: string) => {
     setHistoryLoading(true);
     try {
-      const res = await fetch(`/api/waybills?page=${page}&search=${searchCode || searchName}`);
+      const searchVal = searchOverride !== undefined ? searchOverride : (searchCode || searchName);
+      const res = await fetch(`/api/waybills?page=${page}&search=${searchVal || ""}`);
       const data = await res.json();
       if (res.ok) {
         setHistoryItems(data.items || []);
@@ -583,7 +584,11 @@ export default function Home() {
               <Button size="small" type="primary" onClick={() => fetchHistory(1)}>
                 搜索
               </Button>
-              <Button size="small" icon={<ReloadOutlined />} onClick={() => { setSearchCode(""); setSearchName(""); fetchHistory(1); }}>
+              <Button size="small" icon={<ReloadOutlined />} onClick={() => { 
+                setSearchCode(""); 
+                setSearchName(""); 
+                fetchHistory(1, ""); 
+              }}>
                 重置
               </Button>
             </Space>
