@@ -7,15 +7,17 @@
 ## 1. 🔗 核心链接与地址
 
 ### 🌐 线上部署地址
+
 - **Vercel 生产环境**: [https://ai-exam-demo.vercel.app](https://ai-exam-demo.vercel.app)
 
 ### 🗄️ 云数据库连接地址
+
 - **类型**: Vercel Postgres (Neon)
-- **DATABASE_URL**: 
+- **DATABASE_URL**:
   ```env
   postgresql://neondb_owner:npg_iHPM2X6TFmlt@ep-odd-haze-apy004kg-pooler.c-7.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
   ```
-*(此链接已配置在本地的 `.env` 文件以及 Vercel 的环境变量中，请注意保密)*
+  _(此链接已配置在本地的 `.env` 文件以及 Vercel 的环境变量中，请注意保密)_
 
 ---
 
@@ -50,7 +52,7 @@
    npx vercel --prod --yes
    ```
 2. **等待部署完成**：
-   终端会输出部署进度，完成后会自动生成生产环境的 URL（如 `https://ai-exam-demo.vercel.app`）。
+   终端会输出部署进度，完成后会自动生成生产环境的 URL（如 `https://ai-exam-demo-zzg.vercel.app`）。
 
 ---
 
