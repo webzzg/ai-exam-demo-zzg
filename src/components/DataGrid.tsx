@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Table, Input, Button, Space, Tooltip, Tag } from "antd";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { Table, Input, Button, Space, Tag, Select } from "antd";
 import { standardFields } from "@/utils/excel";
 import { ValidationError } from "@/utils/validation";
 import * as XLSX from "xlsx";
@@ -13,6 +13,159 @@ interface DataGridProps {
   onAddRow: () => void;
 }
 
+// 温层选项
+const TEMP_ZONE_OPTIONS = [
+  { label: "常温", value: "常温" },
+  { label: "冷藏", value: "冷藏" },
+  { label: "冷冻", value: "冷冻" },
+];
+
+// 可编辑单元格组件 — 点击后才变成 Input，避免一次性创建几千个 Input
+const EditableCell = React.memo(({
+  value,
+  error,
+  fieldKey,
+  rowIndex,
+  colIndex,
+  onChange,
+  onBlur,
+}: {
+  value: string;
+  error?: ValidationError;
+  fieldKey: string;
+  rowIndex: number;
+  colIndex: number;
+  onChange: (val: string) => void;
+  onBlur: () => void;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [localVal, setLocalVal] = useState(value);
+  const inputRef = useRef<any>(null);
+
+  // 同步外部值
+  useEffect(() => {
+    if (!editing) setLocalVal(value);
+  }, [value, editing]);
+
+  const startEdit = () => {
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const finishEdit = () => {
+    setEditing(false);
+    if (localVal !== value) {
+      onChange(localVal);
+    }
+    onBlur();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      finishEdit();
+      // 聚焦下一行同列
+      setTimeout(() => {
+        const next = document.querySelector(`[data-cell="${rowIndex + 1}-${colIndex}"]`) as HTMLElement;
+        next?.click();
+      }, 50);
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      finishEdit();
+      const nextCol = e.shiftKey ? colIndex - 1 : colIndex + 1;
+      setTimeout(() => {
+        const next = document.querySelector(`[data-cell="${rowIndex}-${nextCol}"]`) as HTMLElement;
+        next?.click();
+      }, 50);
+    } else if (e.key === "Escape") {
+      setLocalVal(value);
+      setEditing(false);
+    }
+  };
+
+  // 温层字段用下拉选择
+  if (fieldKey === "tempZone") {
+    return (
+      <div>
+        <Select
+          value={localVal || undefined}
+          options={TEMP_ZONE_OPTIONS}
+          onChange={(v) => { setLocalVal(v); onChange(v); }}
+          size="small"
+          variant="borderless"
+          placeholder="选择温层"
+          style={{
+            width: '100%',
+            backgroundColor: error ? '#fff2f0' : 'transparent',
+          }}
+          status={error ? "error" : undefined}
+        />
+        {error && (
+          <div style={{ color: '#ff4d4f', fontSize: 11, lineHeight: '16px', paddingLeft: 6 }}>
+            {error.message}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div>
+        <Input
+          ref={inputRef}
+          value={localVal}
+          onChange={(e) => setLocalVal(e.target.value)}
+          onBlur={finishEdit}
+          onKeyDown={handleKeyDown}
+          status={error ? "error" : ""}
+          variant="borderless"
+          size="small"
+          style={{
+            width: '100%',
+            backgroundColor: error ? '#fff2f0' : 'transparent',
+            borderRadius: 2,
+            padding: '2px 6px',
+          }}
+        />
+        {error && (
+          <div style={{ color: '#ff4d4f', fontSize: 11, lineHeight: '16px', paddingLeft: 6 }}>
+            {error.message}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 展示模式 — 纯文本，无 Input，极轻量
+  return (
+    <div
+      data-cell={`${rowIndex}-${colIndex}`}
+      onClick={startEdit}
+      style={{
+        width: '100%',
+        minHeight: 22,
+        padding: '2px 6px',
+        cursor: 'text',
+        backgroundColor: error ? '#fff2f0' : 'transparent',
+        borderRadius: 2,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}
+    >
+      {localVal || <span style={{ color: '#ccc' }}>点击编辑</span>}
+      {error && (
+        <div style={{ color: '#ff4d4f', fontSize: 11, lineHeight: '16px' }}>
+          {error.message}
+        </div>
+      )}
+    </div>
+  );
+});
+
+EditableCell.displayName = "EditableCell";
+
 export const DataGrid: React.FC<DataGridProps> = ({
   data,
   errors,
@@ -20,105 +173,80 @@ export const DataGrid: React.FC<DataGridProps> = ({
   onRemoveRow,
   onAddRow,
 }) => {
-  const [localData, setLocalData] = useState<any[]>(data);
-  const isEditing = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    // 只在非编辑状态下才从父组件同步数据
-    if (!isEditing.current) {
-      setLocalData(data);
+  // 预计算错误 Map：errorMap[rowNum][fieldKey] = ValidationError（O(1) 查找）
+  const errorMap = useMemo(() => {
+    const map: Record<number, Record<string, ValidationError>> = {};
+    for (const e of errors) {
+      if (!map[e.row]) map[e.row] = {};
+      map[e.row][e.field] = e;
     }
-  }, [data]);
+    return map;
+  }, [errors]);
 
-  const handleCellChange = (index: number, field: string, value: string) => {
-    isEditing.current = true;
-    const newData = [...localData];
+  const errorRowSet = useMemo(() => new Set(errors.map(e => e.row)), [errors]);
+
+  const handleCellChange = useCallback((index: number, field: string, value: string) => {
+    const newData = [...data];
     newData[index] = { ...newData[index], [field]: value };
-    setLocalData(newData);
-  };
+    
+    // Debounce: 合并快速连续编辑，避免频繁校验
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onDataChange(newData);
+    }, 300);
+  }, [data, onDataChange]);
 
-  const handleBlur = () => {
-    // 先通知父组件更新数据，然后解除编辑锁
-    onDataChange(localData);
-    // 延迟重置编辑状态，等父组件的 setState 完成
-    setTimeout(() => {
-      isEditing.current = false;
-    }, 100);
-  };
+  const handleBlur = useCallback(() => {
+    // blur 时立即触发校验（如果还有 pending 的 debounce）
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+  }, []);
 
-  const exportExcel = () => {
-    const exportData = localData.map(row => {
+  const exportExcel = useCallback(() => {
+    const exportData = data.map(row => {
       const obj: any = {};
       standardFields.forEach(f => {
         obj[f.label] = row[f.key] || "";
       });
       return obj;
     });
-
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
     XLSX.writeFile(workbook, "导出数据.xlsx");
-  };
+  }, [data]);
 
-  const getCellError = (rowNum: number, fieldKey: string) => {
-    return errors.find(e => e.row === rowNum && e.field === fieldKey);
-  };
-
-  const getRowErrors = (rowNum: number) => {
-    return errors.filter(e => e.row === rowNum);
-  };
-
-  const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    rowIndex: number,
-    colIndex: number
-  ) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const nextInputId = `cell-${rowIndex + 1}-${colIndex}`;
-      const nextInput = document.getElementById(nextInputId);
-      if (nextInput) {
-        nextInput.focus();
-      }
-    } else if (e.key === "Tab") {
-      e.preventDefault();
-      const nextColIndex = e.shiftKey ? colIndex - 1 : colIndex + 1;
-      const nextInputId = `cell-${rowIndex}-${nextColIndex}`;
-      const nextInput = document.getElementById(nextInputId);
-      if (nextInput) {
-        nextInput.focus();
-      }
-    }
-  };
-
-  const columns = [
+  const columns = useMemo(() => [
     {
       title: "操作",
       key: "action",
-      width: 60,
+      width: 50,
       fixed: "left" as const,
       align: "center" as const,
       render: (_: any, __: any, index: number) => (
-        <Button 
-          danger 
-          type="text" 
+        <Button
+          danger
+          type="text"
           size="small"
-          icon={<DeleteOutlined />} 
-          onClick={() => onRemoveRow(index)} 
+          icon={<DeleteOutlined />}
+          onClick={() => onRemoveRow(index)}
         />
       ),
     },
     {
       title: "序号",
       key: "index",
-      width: 60,
+      width: 55,
       fixed: "left" as const,
       align: "center" as const,
       render: (_: any, __: any, index: number) => {
-        const hasError = getRowErrors(index + 1).length > 0;
+        const hasError = errorRowSet.has(index + 1);
         return (
-          <span style={{ 
+          <span style={{
             color: hasError ? '#ff4d4f' : '#666',
             fontWeight: hasError ? 'bold' : 'normal'
           }}>
@@ -136,40 +264,21 @@ export const DataGrid: React.FC<DataGridProps> = ({
       ),
       dataIndex: field.key,
       key: field.key,
-      width: field.key === 'externalCode' ? 180 : 
-             field.key === 'senderAddress' || field.key === 'receiverAddress' ? 200 :
-             field.key === 'remark' ? 140 : 130,
-      render: (text: string, row: any, index: number) => {
-        const error = getCellError(index + 1, field.key);
+      width: field.key === 'externalCode' ? 160 :
+             field.key === 'senderAddress' || field.key === 'receiverAddress' ? 180 :
+             field.key === 'remark' ? 130 : 120,
+      render: (text: string, _row: any, index: number) => {
+        const error = errorMap[index + 1]?.[field.key];
         return (
-          <div>
-            <Input
-              id={`cell-${index}-${colIndex}`}
-              value={text ?? ''}
-              onChange={(e) => handleCellChange(index, field.key, e.target.value)}
-              onBlur={handleBlur}
-              onKeyDown={(e) => handleKeyDown(e, index, colIndex)}
-              status={error ? "error" : ""}
-              variant="borderless"
-              size="small"
-              style={{
-                width: '100%',
-                backgroundColor: error ? '#fff2f0' : 'transparent',
-                borderRadius: 2,
-                padding: '2px 6px',
-              }}
-            />
-            {error && (
-              <div style={{ 
-                color: '#ff4d4f', 
-                fontSize: '12px', 
-                lineHeight: '18px',
-                paddingLeft: '6px',
-              }}>
-                {error.message}
-              </div>
-            )}
-          </div>
+          <EditableCell
+            value={text ?? ''}
+            error={error}
+            fieldKey={field.key}
+            rowIndex={index}
+            colIndex={colIndex}
+            onChange={(val) => handleCellChange(index, field.key, val)}
+            onBlur={handleBlur}
+          />
         );
       }
     })),
@@ -180,27 +289,35 @@ export const DataGrid: React.FC<DataGridProps> = ({
       fixed: "right" as const,
       align: "center" as const,
       render: (_: any, __: any, index: number) => {
-        const rowErrors = getRowErrors(index + 1);
-        if (rowErrors.length > 0) {
-          return <Tag color="error" style={{ margin: 0 }}>{rowErrors.length}处错误</Tag>;
+        const rowErrs = errorMap[index + 1];
+        if (rowErrs) {
+          const count = Object.keys(rowErrs).length;
+          return <Tag color="error" style={{ margin: 0 }}>{count}处错误</Tag>;
         }
         return <Tag color="success" style={{ margin: 0 }}>通过</Tag>;
       }
     }
-  ];
+  ], [errorMap, errorRowSet, handleCellChange, handleBlur, onRemoveRow]);
 
-  const errorRows = new Set(errors.map(e => e.row));
+  // 为大数据集添加分页
+  const pagination = data.length > 100 ? {
+    pageSize: 100,
+    showTotal: (total: number) => `共 ${total} 条`,
+    showSizeChanger: true,
+    pageSizeOptions: ['50', '100', '200', '500'],
+    size: 'small' as const,
+  } : false;
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div>
           <span style={{ fontSize: 15, fontWeight: 600 }}>数据预览</span>
-          <span style={{ color: '#999', marginLeft: 8 }}>共 {localData.length} 条</span>
-          {errorRows.size > 0 && (
-            <Tag color="error" style={{ marginLeft: 8 }}>{errorRows.size} 行有错误</Tag>
+          <span style={{ color: '#999', marginLeft: 8 }}>共 {data.length} 条</span>
+          {errorRowSet.size > 0 && (
+            <Tag color="error" style={{ marginLeft: 8 }}>{errorRowSet.size} 行有错误</Tag>
           )}
-          {errorRows.size === 0 && localData.length > 0 && (
+          {errorRowSet.size === 0 && data.length > 0 && (
             <Tag color="success" style={{ marginLeft: 8 }}>全部校验通过</Tag>
           )}
         </div>
@@ -216,13 +333,14 @@ export const DataGrid: React.FC<DataGridProps> = ({
 
       <Table
         columns={columns}
-        dataSource={localData.map((d, i) => ({ ...d, key: i }))}
-        pagination={false}
-        scroll={{ x: 1600, y: 400 }}
+        dataSource={data.map((d, i) => ({ ...d, key: i }))}
+        pagination={pagination}
+        scroll={{ x: 1600, y: 450 }}
         size="small"
         bordered
+        virtual
         rowClassName={(_, index) => {
-          return getRowErrors(index + 1).length > 0 ? 'ant-table-row-error' : '';
+          return errorRowSet.has(index + 1) ? 'ant-table-row-error' : '';
         }}
       />
 
