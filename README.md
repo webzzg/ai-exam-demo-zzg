@@ -1,6 +1,6 @@
 # 🚀 AI Full-Stack Exam Demo
 
-这是一个基于 **Vue 3 + Element Plus + Express + SQLite** 的全栈考试演示项目。它实现了完整的数据增删改查（CRUD）闭环，并支持 CSV 数据的导入与导出，完美适配 **Vercel** Serverless 环境部署。
+这是一个基于 **Vue 3 + Element Plus + Express + PostgreSQL** 的全栈考试演示项目。它实现了完整的数据增删改查（CRUD）闭环，并支持 CSV 数据的导入与导出，完美适配 **Vercel** Serverless 环境部署。
 
 ## ✨ 项目核心特性
 
@@ -13,10 +13,12 @@
 
 ## 🛠️ 技术选型
 
-- **前端**：Vue 3 (Composition API), Vite, Element Plus
-- **后端**：Express, Vercel Serverless Functions
-- **数据库**：SQLite (通过 Prisma 管理 Schema，运行时使用 better-sqlite3)
-- **部署**：Vercel (利用 `/tmp` 目录实现 Serverless 环境下的 SQLite 可写操作)
+- **前端层 (Frontend)**：Vue 3 (Composition API) + Element Plus。利用现代化响应式框架与标准 UI 库，构建高性能、高交互性的用户界面。
+- **构建层 (Build)**：Vite 8 + ESM。基于原生 ES 模块的极速构建工具，提供毫秒级的热更新能力，显著提升研发效率。
+- **后端层 (Backend)**：Node.js + Express 5。成熟稳定的服务端环境，配合 Vercel Serverless Functions 实现弹性伸缩的 API 服务。
+- **数据层 (Database)**：PostgreSQL (Cloud Database)。采用业界领先的云原生关系型数据库，确保存储的持久性、高并发能力与数据安全。
+- **ORM 层 (ORM)**：Prisma 6。强类型的数据库建模工具，通过代码即文档的方式管理数据 schema，降低维护成本。
+- **部署层 (Deployment)**：Vercel Global Infrastructure。集成 CI/CD 流程，通过全球边缘网络分发，确保系统在全球范围内的低延迟访问。
 
 ## 📦 快速开始
 

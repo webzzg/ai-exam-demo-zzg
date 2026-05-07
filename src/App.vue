@@ -304,11 +304,42 @@ onMounted(fetchList)
       </div>
     </main>
 
-    <!-- 说明卡片 -->
+    <!-- 技术架构说明卡片 -->
     <section class="explanation-card">
-      <h3>💡 技术选型说明</h3>
-      <p><strong>数据库:</strong> SQLite (文件: <code>dev.db</code>)。优点是零配置、无需搭建数据库服务器，极其适合 Exam Demo 演示。</p>
-      <p><strong>为何全栈:</strong> 通过 Vercel Serverless API 实现了完整的分页 CRUD 闭环，这正是面试或向领导汇报时展示“全栈自闭环能力”的核心点。</p>
+      <h3>🏗️ 项目技术架构总览</h3>
+      <p class="card-subtitle">本系统采用现代化前后端分离架构，以下为各层核心技术介绍：</p>
+      <div class="tech-grid">
+        <div class="tech-item">
+          <span class="tech-label">🖥️ 前端技术</span>
+          <span class="tech-name">Vue 3 + Element Plus</span>
+          <span class="tech-desc">使用最新的 Vue 3 框架，配合 Element Plus 深度定制 UI，提供极致流畅的交互体验与标准化的企业级界面。</span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label">⚡ 高效构建</span>
+          <span class="tech-name">Vite 8 + ESM</span>
+          <span class="tech-desc">基于原生 ESM 的极速开发环境，确保秒级热更新，大幅度缩短从代码编写到原型预览的周期。</span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label">🔧 全栈能力</span>
+          <span class="tech-name">Node.js + Express 5</span>
+          <span class="tech-desc">利用 Serverless 架构实现后端逻辑，具备自动扩容、高性能响应能力，完美闭合前后端数据链路。</span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label">🗄️ 核心数据库</span>
+          <span class="tech-name">PostgreSQL (云原生)</span>
+          <span class="tech-desc">采用高性能关系型数据库，存储于 Vercel 云端，确保数据持久化安全与毫秒级查询响应。</span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label">🔗 现代 ORM</span>
+          <span class="tech-name">Prisma 6</span>
+          <span class="tech-desc">通过强类型定义的 ORM 方案，极大提升后端开发效率与数据库维护的安全性。</span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label">☁️ 弹性部署</span>
+          <span class="tech-name">Vercel Global CDN</span>
+          <span class="tech-desc">项目全程托管于 Vercel，支持全球边缘加速与 CI/CD 自动部署，确保随时随地稳定访问。</span>
+        </div>
+      </div>
     </section>
 
     <!-- 编辑/新增 弹窗 -->
@@ -405,23 +436,70 @@ body {
 
 .explanation-card {
   margin: 0 24px 24px;
-  padding: 20px;
-  background-color: #f0f9eb;
-  border-left: 4px solid #67C23A;
-  border-radius: 4px;
+  padding: 24px;
+  background: #f8fbff;
+  border-left: 6px solid #409eff;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 }
 
 .explanation-card h3 {
-  margin: 0 0 10px;
-  color: #1f2f3d;
-  font-size: 1rem;
+  margin: 0 0 8px;
+  color: #000;
+  font-size: 1.2rem;
+  font-weight: 800;
 }
 
-.explanation-card p {
-  margin: 5px 0;
+.card-subtitle {
+  margin: 0 0 20px !important;
+  font-size: 0.9rem;
+  color: #333;
+  font-weight: 500;
+}
+
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.tech-item {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 16px 20px;
+  border: 1px solid #dcdfe6;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.tech-item:hover {
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+.tech-label {
+  font-size: 0.75rem;
+  color: #555;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+}
+
+.tech-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #000;
+  margin-bottom: 8px;
+}
+
+.tech-desc {
   font-size: 0.85rem;
-  color: #5e6d82;
+  color: #222;
   line-height: 1.6;
+  font-weight: 400;
 }
 
 /* 适配 el-table-v2 的按钮样式 */
